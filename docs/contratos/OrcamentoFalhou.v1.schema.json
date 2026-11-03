@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrcamentoFalhou v1",
+  "description": "Evento Billing -> OS: nao foi possivel gerar o orcamento. Canal: SNS mecanica-billing-eventos. Payload do envelope (envelope.schema.json) com type=OrcamentoFalhou e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "motivo"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "motivo": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  }
+}

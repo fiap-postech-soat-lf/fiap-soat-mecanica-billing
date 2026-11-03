@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrcamentoRecusado v1",
+  "description": "Evento Billing -> OS: o cliente recusou o orcamento. Canal: SNS mecanica-billing-eventos. Payload do envelope (envelope.schema.json) com type=OrcamentoRecusado e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "orcamentoId",
+    "recusadoPor"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orcamentoId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "recusadoPor": {
+      "type": "string",
+      "format": "uuid",
+      "description": "sub do JWT de quem recusou."
+    }
+  }
+}

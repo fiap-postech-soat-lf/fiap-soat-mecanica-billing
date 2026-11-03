@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PagamentoConfirmado v1",
+  "description": "Evento Billing -> OS: pagamento aprovado no Mercado Pago (OS vai para ENTREGUE). Canal: SNS mecanica-billing-eventos. Payload do envelope (envelope.schema.json) com type=PagamentoConfirmado e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "pagamentoId",
+    "mpPaymentId",
+    "status"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "pagamentoId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "mpPaymentId": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "description": "Id do pagamento no Mercado Pago, como texto (numero longo)."
+    },
+    "status": {
+      "const": "APROVADO"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CobrancaCriada v1",
+  "description": "Evento Billing -> OS: cobranca criada no Mercado Pago (OS vai para AGUARDANDO_PAGAMENTO). Canal: SNS mecanica-billing-eventos. Payload do envelope (envelope.schema.json) com type=CobrancaCriada e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "pagamentoId",
+    "link",
+    "status"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "pagamentoId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "link": {
+      "type": "string",
+      "format": "uri"
+    },
+    "status": {
+      "const": "PENDENTE"
+    }
+  }
+}

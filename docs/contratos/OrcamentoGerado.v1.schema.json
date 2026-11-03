@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrcamentoGerado v1",
+  "description": "Evento Billing -> OS: orcamento gerado e enviado ao cliente. Canal: SNS mecanica-billing-eventos. Payload do envelope (envelope.schema.json) com type=OrcamentoGerado e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "orcamentoId",
+    "valorTotal",
+    "expiraEm"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orcamentoId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "valorTotal": {
+      "type": "number",
+      "minimum": 0,
+      "multipleOf": 0.01,
+      "description": "Valor em reais com ate 2 casas (lido como BigDecimal)."
+    },
+    "expiraEm": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

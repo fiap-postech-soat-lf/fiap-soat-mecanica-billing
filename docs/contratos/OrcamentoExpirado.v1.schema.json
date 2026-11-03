@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrcamentoExpirado v1",
+  "description": "Evento Billing -> OS: o orcamento expirou sem resposta. Canal: SNS mecanica-billing-eventos. Payload do envelope (envelope.schema.json) com type=OrcamentoExpirado e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "orcamentoId"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orcamentoId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}

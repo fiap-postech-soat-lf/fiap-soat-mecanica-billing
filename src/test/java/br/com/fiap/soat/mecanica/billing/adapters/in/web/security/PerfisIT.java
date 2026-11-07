@@ -4,6 +4,7 @@ import br.com.fiap.soat.mecanica.billing.support.IntegracaoTest;
 import br.com.fiap.soat.mecanica.billing.support.JwtTestTokens;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -20,13 +21,15 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Matriz de perfis (tabela 3.2 da F6) das rotas existentes: para cada rota, sem token -> 401, perfil errado -> 403
  * e perfil certo passa da seguranca (2xx, 404 ou 422; nunca 401, 403 ou 5xx). As rotas usam ids inexistentes,
- * entao nada e gravado. A rota que ainda nao existe entra na matriz com o seu T: o webhook (T06).
+ * entao nada e gravado. O webhook (publico, assinado) tem o seu proprio teste.
  */
 @Transactional
 class PerfisIT extends IntegracaoTest {
@@ -75,6 +78,17 @@ class PerfisIT extends IntegracaoTest {
                 mockMvc.perform(requisicao(rota, perfil)).andExpect(status().isForbidden());
             }
         }
+    }
+
+    @Test
+    @DisplayName("webhook sem assinatura responde 401 sem corpo, com ou sem token (a rota e publica, mas assinada)")
+    void webhookSemAssinaturaResponde401() throws Exception {
+        mockMvc.perform(post("/webhooks/mercadopago?data.id=1&type=payment"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string(""));
+        mockMvc.perform(post("/webhooks/mercadopago?data.id=1&type=payment")
+                        .header("Authorization", "Bearer " + token(CLIENTE)))
+                .andExpect(status().isUnauthorized());
     }
 
     static Stream<Arguments> rotasEPerfisPermitidos() {

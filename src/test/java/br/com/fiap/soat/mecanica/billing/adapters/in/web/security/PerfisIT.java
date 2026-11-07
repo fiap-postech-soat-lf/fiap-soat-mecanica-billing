@@ -26,8 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Matriz de perfis (tabela 3.2 da F6) das rotas existentes: para cada rota, sem token -> 401, perfil errado -> 403
  * e perfil certo passa da seguranca (2xx, 404 ou 422; nunca 401, 403 ou 5xx). As rotas usam ids inexistentes,
- * entao nada e gravado. As rotas que ainda nao existem entram na matriz com o seu T: nova-cobranca (T04) e o
- * webhook (T06).
+ * entao nada e gravado. A rota que ainda nao existe entra na matriz com o seu T: o webhook (T06).
  */
 @Transactional
 class PerfisIT extends IntegracaoTest {
@@ -56,7 +55,8 @@ class PerfisIT extends IntegracaoTest {
                 new Rota(HttpMethod.GET, "/orcamentos/por-os/" + id, null, clienteOuAtendente),
                 new Rota(HttpMethod.PATCH, "/orcamentos/" + id + "/aprovar", null, clienteOuAtendente),
                 new Rota(HttpMethod.PATCH, "/orcamentos/" + id + "/recusar", "{\"motivo\":\"Caro\"}", clienteOuAtendente),
-                new Rota(HttpMethod.GET, "/pagamentos/por-os/" + id, null, clienteOuAtendente));
+                new Rota(HttpMethod.GET, "/pagamentos/por-os/" + id, null, clienteOuAtendente),
+                new Rota(HttpMethod.POST, "/pagamentos/" + id + "/nova-cobranca", null, Set.of(ATENDENTE)));
     }
 
     @ParameterizedTest(name = "{0}")

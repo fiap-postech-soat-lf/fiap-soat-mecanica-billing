@@ -1,5 +1,7 @@
 package br.com.fiap.soat.mecanica.billing.support;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -49,6 +51,10 @@ public abstract class IntegracaoTest {
             new LocalStackContainer(DockerImageName.parse("localstack/localstack:4.14.0"))
                     .withServices(Service.SNS, Service.SQS);
 
+    /** Mercado Pago simulado (F6-b). Cada teste registra stubs proprios, casados pelo titulo da OS. */
+    protected static final WireMockServer MERCADOPAGO =
+            new WireMockServer(WireMockConfiguration.options().dynamicPort());
+
     protected static final SqsClient SQS;
     protected static final SnsClient SNS;
     protected static final Mensageria MENSAGERIA;
@@ -56,6 +62,7 @@ public abstract class IntegracaoTest {
     static {
         POSTGRES.start();
         LOCALSTACK.start();
+        MERCADOPAGO.start();
         SQS = configurar(SqsClient.builder()).build();
         SNS = configurar(SnsClient.builder()).build();
         MENSAGERIA = Mensageria.criar();
@@ -78,6 +85,7 @@ public abstract class IntegracaoTest {
         registry.add("app.messaging.destinos.billing-eventos", MENSAGERIA::topicoEventos);
         registry.add("app.messaging.destinos.teste-comandos", MENSAGERIA::filaComandos);
         registry.add("app.messaging.destinos.teste-quebrado", MENSAGERIA::topicoInexistente);
+        registry.add("app.mercadopago.base-url", MERCADOPAGO::baseUrl);
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);

@@ -37,6 +37,19 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
+    @DisplayName("Mercado Pago indisponivel ou sem token responde 502 MERCADOPAGO_INDISPONIVEL")
+    void mercadoPagoIndisponivelResponde502() {
+        for (RuntimeException ex : List.of(
+                new br.com.fiap.soat.mecanica.billing.application.pagamento.exception.MercadoPagoIndisponivelException("fora", null),
+                new br.com.fiap.soat.mecanica.billing.application.pagamento.exception.MercadoPagoTokenAusenteException())) {
+            ResponseEntity<ErrorResponse> response = handler.handleMercadoPagoIndisponivel(ex);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+            assertThat(response.getBody().erro()).isEqualTo("MERCADOPAGO_INDISPONIVEL");
+        }
+    }
+
+    @Test
     @DisplayName("Deve incluir o identificador da requisição na resposta de erro")
     void deveIncluirErrorId() {
         MDC.put("correlationId", "request-123");

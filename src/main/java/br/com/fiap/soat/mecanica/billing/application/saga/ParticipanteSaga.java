@@ -5,6 +5,8 @@ import br.com.fiap.soat.mecanica.billing.application.mensageria.OutboxPort;
 import br.com.fiap.soat.mecanica.billing.application.saga.RespostasSaga.Resposta;
 import br.com.fiap.soat.mecanica.billing.application.saga.dto.CancelarOrcamentoPayload;
 import br.com.fiap.soat.mecanica.billing.application.saga.dto.GerarOrcamentoPayload;
+import br.com.fiap.soat.mecanica.billing.application.saga.dto.SolicitarPagamentoPayload;
+import br.com.fiap.soat.mecanica.billing.application.pagamento.EmissorDeCobranca;
 import br.com.fiap.soat.mecanica.billing.config.observability.BusinessEventLogger;
 import br.com.fiap.soat.mecanica.billing.config.observability.Mdc;
 import br.com.fiap.soat.mecanica.billing.domain.orcamento.ItemOrcamento;
@@ -12,6 +14,7 @@ import br.com.fiap.soat.mecanica.billing.domain.orcamento.Orcamento;
 import br.com.fiap.soat.mecanica.billing.domain.orcamento.OrcamentoInconsistenteException;
 import br.com.fiap.soat.mecanica.billing.domain.orcamento.OrcamentoRepository;
 import br.com.fiap.soat.mecanica.billing.domain.orcamento.StatusOrcamento;
+import br.com.fiap.soat.mecanica.billing.domain.pagamento.Pagamento;
 import br.com.fiap.soat.mecanica.billing.domain.pagamento.PagamentoRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -45,17 +48,20 @@ public class ParticipanteSaga {
     private final PagamentoRepository pagamentos;
     private final ComandosAtendidos comandos;
     private final RespostasSaga respostas;
+    private final EmissorDeCobranca emissor;
     private final OutboxPort outbox;
     private final Clock clock;
     private final Duration ttl;
 
     public ParticipanteSaga(OrcamentoRepository orcamentos, PagamentoRepository pagamentos,
-                            ComandosAtendidos comandos, RespostasSaga respostas, OutboxPort outbox, Clock clock,
+                            ComandosAtendidos comandos, RespostasSaga respostas, EmissorDeCobranca emissor,
+                            OutboxPort outbox, Clock clock,
                             @Value("${app.orcamento.ttl}") Duration ttl) {
         this.orcamentos = orcamentos;
         this.pagamentos = pagamentos;
         this.comandos = comandos;
         this.respostas = respostas;
+        this.emissor = emissor;
         this.outbox = outbox;
         this.clock = clock;
         this.ttl = ttl;
@@ -103,6 +109,45 @@ public class ParticipanteSaga {
             orcamentos.salvar(orcamento);
             BusinessEventLogger.orcamentoStatus(orcamento.getId(), orcamento.getOsId(), de, orcamento.getStatus(),
                     comando.motivo());
+        }
+    }
+
+    /**
+     * {@code SolicitarPagamento}: orcamento APROVADO da OS -> pagamento PENDENTE + preferencia -> CobrancaCriada.
+     * O Mercado Pago e chamado depois de todas as validacoes locais. Se ele falhar, a excecao desfaz a transacao,
+     * a mensagem volta a fila e o OS reenvia (so recuperacao para frente, F6-g). Sem orcamento aprovado ou com um
+     * pagamento vigente, loga e nao responde: depois do pivo, o timeout do OS leva a Saga a FALHOU.
+     */
+    public void solicitarPagamento(MensagemEnvelope envelope, SolicitarPagamentoPayload comando) {
+        try (var ignored = contexto(envelope)) {
+            UUID osId = comando.osId();
+            Optional<ComandoAtendido> guardado = comandos.buscar(osId, SOLICITAR_PAGAMENTO)
+                    .filter(c -> c.contem(envelope.messageId(), envelope.causationId()));
+            if (guardado.isPresent()) {
+                reemitir(osId, SOLICITAR_PAGAMENTO, envelope, guardado.get());
+                return;
+            }
+            Optional<Orcamento> aprovado = orcamentos.buscarPorId(comando.orcamentoId())
+                    .filter(o -> o.getOsId().equals(osId) && o.getStatus() == StatusOrcamento.APROVADO);
+            if (aprovado.isEmpty()) {
+                BusinessEventLogger.comandoForaDeEstado(osId, SOLICITAR_PAGAMENTO, "sem orcamento aprovado");
+                return;
+            }
+            if (pagamentos.buscarVigentePorOs(osId).isPresent()) {
+                BusinessEventLogger.comandoForaDeEstado(osId, SOLICITAR_PAGAMENTO, "pagamento vigente ja existe");
+                return;
+            }
+            Orcamento orcamento = aprovado.get();
+            if (comando.valor() == null || orcamento.getValorTotal().compareTo(comando.valor()) != 0) {
+                BusinessEventLogger.valorDivergente(osId, comando.valor(), orcamento.getValorTotal());
+            }
+            Pagamento pagamento = pagamentos.salvar(emissor.emitir(orcamento));
+            BusinessEventLogger.pagamentoStatus(pagamento.getId(), osId, null, pagamento.getStatus(), null);
+            BusinessEventLogger.cobrancaCriada(pagamento.getId(), osId);
+
+            Resposta resposta = respostas.cobrancaCriada(pagamento);
+            comandos.registrar(osId, SOLICITAR_PAGAMENTO, envelope.messageId(), resposta);
+            outbox.registrar(RespostasSaga.DESTINO, respostas.envelope(resposta, envelope.sagaId(), osId));
         }
     }
 

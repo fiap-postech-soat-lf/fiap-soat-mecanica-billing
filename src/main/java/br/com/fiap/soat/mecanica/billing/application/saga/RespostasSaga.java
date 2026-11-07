@@ -3,6 +3,7 @@ package br.com.fiap.soat.mecanica.billing.application.saga;
 import br.com.fiap.soat.mecanica.billing.application.mensageria.MensagemEnvelope;
 import br.com.fiap.soat.mecanica.billing.application.mensageria.MensagemFactory;
 import br.com.fiap.soat.mecanica.billing.domain.orcamento.Orcamento;
+import br.com.fiap.soat.mecanica.billing.domain.pagamento.Pagamento;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ public class RespostasSaga {
     public static final String DESTINO = "billing-eventos";
     public static final String ORCAMENTO_GERADO = "OrcamentoGerado";
     public static final String ORCAMENTO_FALHOU = "OrcamentoFalhou";
+    public static final String COBRANCA_CRIADA = "CobrancaCriada";
     static final int TAMANHO_MAXIMO_MOTIVO = 500;
 
     private final MensagemFactory mensagens;
@@ -42,6 +44,12 @@ public class RespostasSaga {
     public Resposta orcamentoFalhou(UUID osId, String motivo) {
         String curto = motivo.length() <= TAMANHO_MAXIMO_MOTIVO ? motivo : motivo.substring(0, TAMANHO_MAXIMO_MOTIVO);
         return resposta(ORCAMENTO_FALHOU, Map.of("osId", osId, "motivo", curto));
+    }
+
+    /** O pagamento recem-criado: sempre PENDENTE, com o link do Checkout Pro (F6-g). */
+    public Resposta cobrancaCriada(Pagamento p) {
+        return resposta(COBRANCA_CRIADA, Map.of("osId", p.getOsId(), "pagamentoId", p.getId(), "link", p.getLink(),
+                "status", p.getStatus().name()));
     }
 
     /** Envelope novo (messageId novo) para a resposta, na primeira emissao e na reemissao. */

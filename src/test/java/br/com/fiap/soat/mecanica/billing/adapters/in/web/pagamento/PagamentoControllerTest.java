@@ -1,7 +1,10 @@
 package br.com.fiap.soat.mecanica.billing.adapters.in.web.pagamento;
 
 import br.com.fiap.soat.mecanica.billing.application.pagamento.usecase.BuscarPagamentosPorOsUseCase;
+import br.com.fiap.soat.mecanica.billing.application.pagamento.exception.MercadoPagoIndisponivelException;
 import br.com.fiap.soat.mecanica.billing.application.pagamento.usecase.BuscarPagamentosPorOsUseCase.Resultado;
+import br.com.fiap.soat.mecanica.billing.application.pagamento.usecase.NovaCobrancaUseCase;
+import br.com.fiap.soat.mecanica.billing.domain.exception.RegraNegocioException;
 import br.com.fiap.soat.mecanica.billing.domain.exception.AcessoARecursoDeOutroClienteException;
 import br.com.fiap.soat.mecanica.billing.domain.pagamento.Pagamento;
 import br.com.fiap.soat.mecanica.billing.support.JwtTestTokens;
@@ -21,6 +24,7 @@ import java.util.UUID;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +36,8 @@ class PagamentoControllerTest {
     MockMvc mockMvc;
     @MockitoBean
     BuscarPagamentosPorOsUseCase buscarPorOs;
+    @MockitoBean
+    NovaCobrancaUseCase novaCobranca;
 
     final UUID os = UUID.randomUUID();
     final UUID cliente = UUID.randomUUID();
@@ -71,5 +77,47 @@ class PagamentoControllerTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(buscarPorOs);
+    }
+
+    private String atendente() {
+        return "Bearer " + JwtTestTokens.funcionario(UUID.randomUUID(), "ATENDENTE");
+    }
+
+    @Test
+    void novaCobrancaDevolve201ComOPagamentoNovo() throws Exception {
+        Pagamento novo = Pagamento.criar(os, UUID.randomUUID(), cliente, new BigDecimal("50.00"), Instant.EPOCH);
+        novo.registrarPreferencia("pref", "https://mp/novo");
+        when(novaCobranca.executar(os)).thenReturn(novo);
+
+        mockMvc.perform(post("/pagamentos/" + os + "/nova-cobranca").header("Authorization", atendente()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDENTE"))
+                .andExpect(jsonPath("$.link").value("https://mp/novo"));
+    }
+
+    @Test
+    void novaCobrancaSemVigenteRecusadoDa422() throws Exception {
+        when(novaCobranca.executar(os)).thenThrow(new RegraNegocioException("Nova cobranca exige pagamento vigente RECUSADO"));
+
+        mockMvc.perform(post("/pagamentos/" + os + "/nova-cobranca").header("Authorization", atendente()))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void novaCobrancaComMercadoPagoForaDa502() throws Exception {
+        when(novaCobranca.executar(os)).thenThrow(new MercadoPagoIndisponivelException("fora", null));
+
+        mockMvc.perform(post("/pagamentos/" + os + "/nova-cobranca").header("Authorization", atendente()))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.erro").value("MERCADOPAGO_INDISPONIVEL"));
+    }
+
+    @Test
+    void novaCobrancaNaoEDoCliente() throws Exception {
+        mockMvc.perform(post("/pagamentos/" + os + "/nova-cobranca")
+                        .header("Authorization", "Bearer " + JwtTestTokens.cliente(cliente)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(novaCobranca);
     }
 }

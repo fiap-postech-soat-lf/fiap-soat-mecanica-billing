@@ -1,5 +1,7 @@
 package br.com.fiap.soat.mecanica.billing.config.exception;
 
+import br.com.fiap.soat.mecanica.billing.application.pagamento.exception.MercadoPagoIndisponivelException;
+import br.com.fiap.soat.mecanica.billing.application.pagamento.exception.MercadoPagoTokenAusenteException;
 import br.com.fiap.soat.mecanica.billing.domain.exception.AcessoARecursoDeOutroClienteException;
 import br.com.fiap.soat.mecanica.billing.domain.exception.ConflitoConcorrenciaException;
 import br.com.fiap.soat.mecanica.billing.domain.exception.RecursoNaoEncontradoException;
@@ -158,6 +160,15 @@ public class GlobalExceptionHandler {
                 .addKeyValue("exceptionType", ex.getClass().getSimpleName()).log("Concurrent modification conflict");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(409, "CONFLITO_CONCORRENTE",
                 "O recurso foi alterado por outra operação; repita a requisição", null, null, null));
+    }
+
+    /** Nova cobranca com o Mercado Pago fora do ar ou sem token: nada foi gravado (F6-h). */
+    @ExceptionHandler({MercadoPagoIndisponivelException.class, MercadoPagoTokenAusenteException.class})
+    public ResponseEntity<ErrorResponse> handleMercadoPagoIndisponivel(RuntimeException ex) {
+        log.atWarn().addKeyValue("event", "mercadopago_indisponivel_na_requisicao")
+                .addKeyValue("exceptionType", ex.getClass().getSimpleName()).log("Mercado Pago unavailable");
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new ErrorResponse(502, "MERCADOPAGO_INDISPONIVEL",
+                "Mercado Pago indisponível; tente novamente em instantes", null, null, null));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

@@ -149,8 +149,11 @@ class AprovacaoIT extends IntegracaoTest {
         mockMvc.perform(patch("/orcamentos/" + o.getId() + "/aprovar").header("Authorization", cliente(cliente)))
                 .andExpect(status().isUnprocessableEntity());
 
-        assertThat(naOutbox(o.getOsId())).isZero();
-        assertThat(orcamentos.buscarPorId(o.getId()).orElseThrow().getStatus()).isEqualTo(StatusOrcamento.GERADO);
+        // O scheduler de expiracao (1 s nos testes) pode vencer a corrida: o que nao pode haver e aprovacao
+        assertThat(jdbc.queryForObject("select count(*) from outbox where tipo = 'OrcamentoAprovado' "
+                + "and envelope->>'osId' = ?", Integer.class, o.getOsId().toString())).isZero();
+        assertThat(orcamentos.buscarPorId(o.getId()).orElseThrow().getStatus())
+                .isIn(StatusOrcamento.GERADO, StatusOrcamento.EXPIRADO);
     }
 
     @Test

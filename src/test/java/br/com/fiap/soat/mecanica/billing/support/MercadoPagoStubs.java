@@ -9,6 +9,8 @@ import java.util.UUID;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
@@ -45,5 +47,22 @@ public final class MercadoPagoStubs {
     public static int chamadasDePreferencia(WireMockServer mp, UUID osId) {
         return mp.findAll(postRequestedFor(urlEqualTo("/checkout/preferences"))
                 .withRequestBody(containing(osId.toString().substring(0, 8)))).size();
+    }
+
+    /** GET /v1/payments/{id}: o pagamento como o Mercado Pago o devolve (id numerico, external_reference = pagamentoId). */
+    public static StubMapping pagamentoConsultado(WireMockServer mp, String mpPaymentId, String status,
+                                                  String statusDetail, UUID externalReference) {
+        return mp.stubFor(get(urlEqualTo("/v1/payments/" + mpPaymentId)).willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"id\":" + mpPaymentId + ",\"status\":\"" + status + "\",\"status_detail\":\""
+                        + statusDetail + "\",\"external_reference\":\"" + externalReference + "\"}")));
+    }
+
+    public static StubMapping pagamentoComErro(WireMockServer mp, String mpPaymentId, int status) {
+        return mp.stubFor(get(urlEqualTo("/v1/payments/" + mpPaymentId)).willReturn(aResponse().withStatus(status)));
+    }
+
+    public static int consultasDePagamento(WireMockServer mp, String mpPaymentId) {
+        return mp.findAll(getRequestedFor(urlEqualTo("/v1/payments/" + mpPaymentId))).size();
     }
 }

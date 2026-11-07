@@ -105,4 +105,75 @@ public final class BusinessEventLogger {
                 .addKeyValue("causa", causa)
                 .log("Mercado Pago unavailable after retries");
     }
+
+    /** Nunca registra o header x-signature nem o segredo (F6-i). */
+    public static void webhookRecebido(String tipo, String acao, String mpPaymentId, String resultado) {
+        log.atInfo()
+                .addKeyValue("event", "webhook_recebido")
+                .addKeyValue("tipo", tipo)
+                .addKeyValue("acao", acao)
+                .addKeyValue("mpPaymentId", mpPaymentId)
+                .addKeyValue("resultado", resultado)
+                .log("Webhook do Mercado Pago recebido");
+    }
+
+    public static void webhookAssinaturaInvalida() {
+        log.atWarn()
+                .addKeyValue("event", "webhook_assinatura_invalida")
+                .log("Webhook rejeitado: assinatura ausente ou invalida");
+    }
+
+    public static void webhookSegredoAusente() {
+        log.atError()
+                .addKeyValue("event", "webhook_segredo_ausente")
+                .log("Webhook secret is not configured");
+    }
+
+    /** external_reference que nao e de um pagamento nosso (outro sistema usando a mesma aplicacao de teste). */
+    public static void pagamentoDesconhecido(String mpPaymentId, String externalReference) {
+        log.atWarn()
+                .addKeyValue("event", "pagamento_desconhecido")
+                .addKeyValue("mpPaymentId", mpPaymentId)
+                .addKeyValue("externalReference", externalReference)
+                .log("Pagamento do Mercado Pago sem cobranca correspondente");
+    }
+
+    public static void pagamentoEmCobrancaSubstituida(UUID pagamentoId, UUID osId, String mpPaymentId,
+                                                      String statusMp) {
+        log.atWarn()
+                .addKeyValue("event", "pagamento_em_cobranca_substituida")
+                .addKeyValue("pagamentoId", pagamentoId)
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("mpPaymentId", mpPaymentId)
+                .addKeyValue("statusMp", statusMp)
+                .log("Pagamento chegou numa cobranca substituida; sem evento");
+    }
+
+    public static void pagamentoJaAprovado(UUID pagamentoId, UUID osId, String mpPaymentId, String statusMp) {
+        log.atWarn()
+                .addKeyValue("event", "pagamento_ja_aprovado")
+                .addKeyValue("pagamentoId", pagamentoId)
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("mpPaymentId", mpPaymentId)
+                .addKeyValue("statusMp", statusMp)
+                .log("Pagamento ja aprovado; notificacao sem efeito");
+    }
+
+    public static void statusMpIgnorado(String mpPaymentId, String statusMp) {
+        log.atWarn()
+                .addKeyValue("event", "status_mp_ignorado")
+                .addKeyValue("mpPaymentId", mpPaymentId)
+                .addKeyValue("statusMp", statusMp)
+                .log("Status do Mercado Pago sem mapeamento; ignorado");
+    }
+
+    public static void webhookProcessamentoFalhou(String mpPaymentId, int tentativas, boolean esgotado, String causa) {
+        log.atWarn()
+                .addKeyValue("event", "webhook_processamento_falhou")
+                .addKeyValue("mpPaymentId", mpPaymentId)
+                .addKeyValue("tentativas", tentativas)
+                .addKeyValue("esgotado", esgotado)
+                .addKeyValue("causa", causa)
+                .log("Falha ao consultar o pagamento no Mercado Pago");
+    }
 }

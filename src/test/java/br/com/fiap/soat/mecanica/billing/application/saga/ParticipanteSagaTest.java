@@ -3,7 +3,10 @@ package br.com.fiap.soat.mecanica.billing.application.saga;
 import br.com.fiap.soat.mecanica.billing.application.mensageria.MensagemEnvelope;
 import br.com.fiap.soat.mecanica.billing.application.mensageria.MensagemFactory;
 import br.com.fiap.soat.mecanica.billing.application.mensageria.OutboxPort;
+import br.com.fiap.soat.mecanica.billing.application.pagamento.EmissorDeCobranca;
+import br.com.fiap.soat.mecanica.billing.application.pagamento.exception.MercadoPagoIndisponivelException;
 import br.com.fiap.soat.mecanica.billing.application.saga.RespostasSaga.Resposta;
+import br.com.fiap.soat.mecanica.billing.application.saga.dto.SolicitarPagamentoPayload;
 import br.com.fiap.soat.mecanica.billing.application.saga.dto.CancelarOrcamentoPayload;
 import br.com.fiap.soat.mecanica.billing.application.saga.dto.GerarOrcamentoPayload;
 import br.com.fiap.soat.mecanica.billing.application.saga.dto.GerarOrcamentoPayload.ItemServico;
@@ -30,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,6 +55,7 @@ class ParticipanteSagaTest {
     OrcamentoRepository orcamentos = mock(OrcamentoRepository.class);
     PagamentoRepository pagamentos = mock(PagamentoRepository.class);
     ComandosAtendidos comandos = mock(ComandosAtendidos.class);
+    EmissorDeCobranca emissor = mock(EmissorDeCobranca.class);
     OutboxPort outbox = mock(OutboxPort.class);
     ObjectMapper mapper = new ObjectMapper();
     ParticipanteSaga participante;
@@ -59,7 +64,7 @@ class ParticipanteSagaTest {
     void preparar() {
         Clock clock = Clock.fixed(AGORA, ZoneOffset.UTC);
         RespostasSaga respostas = new RespostasSaga(new MensagemFactory(mapper), mapper);
-        participante = new ParticipanteSaga(orcamentos, pagamentos, comandos, respostas, outbox, clock, TTL);
+        participante = new ParticipanteSaga(orcamentos, pagamentos, comandos, respostas, emissor, outbox, clock, TTL);
         when(orcamentos.salvar(any())).thenAnswer(i -> i.getArgument(0));
         when(comandos.buscar(any(), anyString())).thenReturn(Optional.empty());
     }
@@ -314,5 +319,135 @@ class ParticipanteSagaTest {
                 new GerarOrcamentoPayload(OS, CLIENTE, itens, new BigDecimal("279.80")));
 
         assertThat(enviado().type()).isEqualTo("OrcamentoGerado");
+    }
+
+    // ---- SolicitarPagamento ---------------------------------------------------------------------------
+
+    private Orcamento aprovado() {
+        Orcamento o = gerado();
+        o.aprovar(CLIENTE, AGORA);
+        when(orcamentos.buscarPorId(o.getId())).thenReturn(Optional.of(o));
+        return o;
+    }
+
+    private Pagamento cobranca(Orcamento o) {
+        Pagamento p = Pagamento.criar(OS, o.getId(), CLIENTE, o.getValorTotal(), AGORA);
+        p.registrarPreferencia("pref-1", "https://mp/checkout?pref_id=1");
+        when(emissor.emitir(o)).thenReturn(p);
+        when(pagamentos.salvar(any())).thenAnswer(i -> i.getArgument(0));
+        return p;
+    }
+
+    private static SolicitarPagamentoPayload solicitar(Orcamento o, BigDecimal valor) {
+        return new SolicitarPagamentoPayload(OS, o.getId(), valor);
+    }
+
+    @Test
+    void solicitarPagamentoComOrcamentoAprovadoCriaACobrancaERespondeCobrancaCriada() {
+        Orcamento o = aprovado();
+        Pagamento p = cobranca(o);
+        UUID messageId = UUID.randomUUID();
+
+        participante.solicitarPagamento(envelope("SolicitarPagamento", messageId, null), solicitar(o, o.getValorTotal()));
+
+        verify(pagamentos).salvar(p);
+        verify(comandos).registrar(eq(OS), eq("SolicitarPagamento"), eq(messageId), any(Resposta.class));
+        MensagemEnvelope resposta = enviado();
+        assertThat(resposta.type()).isEqualTo("CobrancaCriada");
+        assertThat(resposta.sagaId()).isEqualTo(SAGA);
+        assertThat(resposta.causationId()).isEqualTo(messageId);
+        assertThat(resposta.payload().path("pagamentoId").asText()).isEqualTo(p.getId().toString());
+        assertThat(resposta.payload().path("link").asText()).isEqualTo("https://mp/checkout?pref_id=1");
+        assertThat(resposta.payload().path("status").asText()).isEqualTo("PENDENTE");
+    }
+
+    @Test
+    void solicitarPagamentoComValorDivergenteCobraOValorDoOrcamento() {
+        Orcamento o = aprovado();
+        cobranca(o);
+
+        participante.solicitarPagamento(envelope("SolicitarPagamento", UUID.randomUUID(), null),
+                solicitar(o, new BigDecimal("1.00")));
+
+        verify(emissor).emitir(o);
+        assertThat(enviado().type()).isEqualTo("CobrancaCriada");
+    }
+
+    @Test
+    void solicitarPagamentoSemOrcamentoAprovadoNaoCriaPreferenciaENaoResponde() {
+        Orcamento o = gerado();
+        when(orcamentos.buscarPorId(o.getId())).thenReturn(Optional.of(o));
+
+        participante.solicitarPagamento(envelope("SolicitarPagamento", UUID.randomUUID(), null), solicitar(o, o.getValorTotal()));
+        participante.solicitarPagamento(envelope("SolicitarPagamento", UUID.randomUUID(), null),
+                new SolicitarPagamentoPayload(OS, UUID.randomUUID(), o.getValorTotal()));
+
+        verifyNoInteractions(emissor, outbox);
+        verify(pagamentos, never()).salvar(any());
+        verify(comandos, never()).registrar(any(), anyString(), any(), any());
+    }
+
+    @Test
+    void solicitarPagamentoDeOrcamentoDeOutraOsNaoCria() {
+        Orcamento deOutraOs = Orcamento.gerar(UUID.randomUUID(), SAGA, CLIENTE, gerado().getItens(),
+                new BigDecimal("50.00"), TTL, AGORA);
+        deOutraOs.aprovar(CLIENTE, AGORA);
+        when(orcamentos.buscarPorId(deOutraOs.getId())).thenReturn(Optional.of(deOutraOs));
+
+        participante.solicitarPagamento(envelope("SolicitarPagamento", UUID.randomUUID(), null),
+                solicitar(deOutraOs, deOutraOs.getValorTotal()));
+
+        verifyNoInteractions(emissor, outbox);
+    }
+
+    @Test
+    void solicitarPagamentoComPagamentoVigenteNaoCriaOutro() {
+        Orcamento o = aprovado();
+        when(pagamentos.buscarVigentePorOs(OS)).thenReturn(Optional.of(Pagamento.criar(OS, o.getId(), CLIENTE,
+                o.getValorTotal(), AGORA)));
+
+        participante.solicitarPagamento(envelope("SolicitarPagamento", UUID.randomUUID(), null), solicitar(o, o.getValorTotal()));
+
+        verifyNoInteractions(emissor, outbox);
+    }
+
+    @Test
+    void reenvioDeSolicitarPagamentoReemiteSemNovaPreferencia() {
+        UUID original = UUID.randomUUID();
+        UUID reenvio = UUID.randomUUID();
+        Pagamento p = Pagamento.criar(OS, UUID.randomUUID(), CLIENTE, new BigDecimal("50.00"), AGORA);
+        p.registrarPreferencia("pref", "https://mp/c");
+        Resposta guardada = respostasReais().cobrancaCriada(p);
+        when(comandos.buscar(OS, "SolicitarPagamento")).thenReturn(Optional.of(
+                new ComandoAtendido(List.of(original), guardada.tipo(), guardada.payload())));
+
+        participante.solicitarPagamento(envelope("SolicitarPagamento", reenvio, original),
+                solicitar(gerado(), new BigDecimal("50.00")));
+
+        verifyNoInteractions(emissor, pagamentos);
+        verify(comandos).acrescentar(OS, "SolicitarPagamento", reenvio);
+        verify(comandos, never()).registrar(any(), anyString(), any(), any());
+        MensagemEnvelope resposta = enviado();
+        assertThat(resposta.type()).isEqualTo("CobrancaCriada");
+        assertThat(resposta.causationId()).isEqualTo(reenvio);
+        assertThat(resposta.payload()).isEqualTo(guardada.payload());
+    }
+
+    @Test
+    void mercadoPagoForaPropagaESemEfeitoGravado() {
+        Orcamento o = aprovado();
+        when(emissor.emitir(o)).thenThrow(new MercadoPagoIndisponivelException("fora", null));
+
+        assertThatThrownBy(() -> participante.solicitarPagamento(
+                envelope("SolicitarPagamento", UUID.randomUUID(), null), solicitar(o, o.getValorTotal())))
+                .isInstanceOf(MercadoPagoIndisponivelException.class);
+
+        verify(pagamentos, never()).salvar(any());
+        verify(comandos, never()).registrar(any(), anyString(), any(), any());
+        verifyNoInteractions(outbox);
+    }
+
+    private RespostasSaga respostasReais() {
+        return new RespostasSaga(new MensagemFactory(mapper), mapper);
     }
 }

@@ -79,22 +79,24 @@ class ContratosConsumidosTest {
     }
 
     @Test
-    void solicitarPagamentoDesserializaNoRecordDoT04() throws Exception {
+    void solicitarPagamento() {
         MensagemEnvelope envelope = exemplo("SolicitarPagamento");
 
-        SolicitarPagamentoPayload payload = PayloadsSaga.ler(objectMapper, envelope, SolicitarPagamentoPayload.class);
+        new SolicitarPagamentoHandler(participante, objectMapper).processar(envelope);
 
-        assertThat(payload).isEqualTo(new SolicitarPagamentoPayload(
+        verify(participante).solicitarPagamento(eq(envelope), eq(new SolicitarPagamentoPayload(
                 UUID.fromString("7d1c2a4e-3b5f-4c6d-8e9f-0a1b2c3d4e5f"),
-                UUID.fromString("e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b"), new BigDecimal("407.1")));
+                UUID.fromString("e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b"), new BigDecimal("407.1"))));
     }
 
     @Test
     void cadaHandlerTrataOTipoDoSeuContrato() {
         List<MensagemHandler> handlers = List.of(new GerarOrcamentoHandler(participante, objectMapper),
-                new CancelarOrcamentoHandler(participante, objectMapper));
+                new CancelarOrcamentoHandler(participante, objectMapper),
+                new SolicitarPagamentoHandler(participante, objectMapper));
 
-        assertThat(handlers).extracting(MensagemHandler::tipo).containsExactly("GerarOrcamento", "CancelarOrcamento");
+        assertThat(handlers).extracting(MensagemHandler::tipo)
+                .containsExactly("GerarOrcamento", "CancelarOrcamento", "SolicitarPagamento");
     }
 
     @Test

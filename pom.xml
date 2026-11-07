@@ -100,6 +100,13 @@
 			<artifactId>opentelemetry-api</artifactId>
 		</dependency>
 
+		<!-- Retry programatico do MercadoPagoClient (F6-b), sem AOP -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-retry</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -154,6 +161,13 @@
 		<dependency>
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<!-- Mercado Pago simulado nos testes (F6-b) -->
+			<groupId>org.wiremock</groupId>
+			<artifactId>wiremock-standalone</artifactId>
+			<version>3.9.2</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

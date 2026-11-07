@@ -71,4 +71,38 @@ public final class BusinessEventLogger {
                 .addKeyValue("resposta", tipoResposta)
                 .log("Comando reenviado; resposta reemitida");
     }
+
+    /** SolicitarPagamento sem orcamento APROVADO, ou com pagamento vigente: sem resposta (tabela 4.1 da F6). */
+    public static void comandoForaDeEstado(UUID osId, String tipoComando, String motivo) {
+        log.atWarn()
+                .addKeyValue("event", "comando_fora_de_estado")
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("comando", tipoComando)
+                .addKeyValue("motivo", motivo)
+                .log("Comando fora de estado; sem resposta");
+    }
+
+    /** O valor do comando difere do orcamento aprovado: cobra-se o do orcamento (F6-g). */
+    public static void valorDivergente(UUID osId, java.math.BigDecimal valorComando, java.math.BigDecimal valorOrcamento) {
+        log.atWarn()
+                .addKeyValue("event", "valor_divergente")
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("valorComando", valorComando)
+                .addKeyValue("valorOrcamento", valorOrcamento)
+                .log("Valor do comando diverge do orcamento aprovado");
+    }
+
+    public static void mercadoPagoTokenAusente() {
+        log.atError()
+                .addKeyValue("event", "mercadopago_token_ausente")
+                .log("Mercado Pago access token is not configured");
+    }
+
+    public static void mercadoPagoIndisponivel(String operacao, String causa) {
+        log.atWarn()
+                .addKeyValue("event", "mercadopago_indisponivel")
+                .addKeyValue("operacao", operacao)
+                .addKeyValue("causa", causa)
+                .log("Mercado Pago unavailable after retries");
+    }
 }

@@ -1,5 +1,10 @@
 # Testes do infra/ com o provider aws mockado: nao precisa de credencial AWS nem do EKS.
 
+variables {
+  mp_access_token   = "APP_USR-token-falso"
+  mp_webhook_secret = "segredo-falso"
+}
+
 mock_provider "aws" {
   # O mock gera ARN aleatorio; o ARN do topico precisa ser valido para o SSM e as validacoes.
   mock_resource "aws_sns_topic" {
@@ -42,18 +47,23 @@ run "contrato_infra_cd" {
   command = apply
 
   assert {
-    condition     = toset(keys(output.app_config)) == toset(["SPRING_DATASOURCE_URL", "AWS_REGION", "JWT_PUBLIC_KEY", "APP_MESSAGING_DLQS"])
-    error_message = "app_config: banco, regiao, JWT_PUBLIC_KEY e a DLQ, sem APP_MESSAGING_CONSUMIDOR_FILAS (o consumidor entra depois)."
+    condition = toset(keys(output.app_config)) == toset([
+      "SPRING_DATASOURCE_URL", "AWS_REGION", "JWT_PUBLIC_KEY", "APP_MESSAGING_DLQS",
+      "APP_MESSAGING_CONSUMIDOR_FILAS", "MESSAGING_DESTINO_BILLING_EVENTOS"
+    ])
+    error_message = "app_config deve ter as 6 chaves da F6 (T05)."
   }
 
   assert {
-    condition     = !contains(keys(output.app_config), "APP_MESSAGING_CONSUMIDOR_FILAS")
-    error_message = "O consumidor ainda nao esta ligado (F4-k)."
+    condition = toset(keys(output.app_secrets)) == toset([
+      "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD", "MP_ACCESS_TOKEN", "MP_WEBHOOK_SECRET"
+    ])
+    error_message = "app_secrets deve ter usuario e senha do banco e os 2 segredos do Mercado Pago."
   }
 
   assert {
-    condition     = toset(keys(output.app_secrets)) == toset(["SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD"])
-    error_message = "app_secrets deve ter usuario e senha do banco."
+    condition     = !contains(keys(output.app_config), "MP_ACCESS_TOKEN") && !contains(keys(output.app_config), "MP_WEBHOOK_SECRET")
+    error_message = "Nenhum segredo do Mercado Pago no app_config."
   }
 
   assert {
@@ -126,4 +136,42 @@ run "nome_do_banco" {
     condition     = startswith(output.app_config.SPRING_DATASOURCE_URL, "jdbc:postgresql://") && endswith(output.app_config.SPRING_DATASOURCE_URL, "/billing_db?sslmode=require")
     error_message = "SPRING_DATASOURCE_URL deve apontar para billing_db com sslmode=require."
   }
+}
+
+run "secrets_mercadopago" {
+  command = apply
+
+  assert {
+    condition     = aws_secretsmanager_secret.mp_access_token.name == "mercadopago-access-token" && aws_secretsmanager_secret.mp_webhook_secret.name == "mercadopago-webhook-secret"
+    error_message = "Nomes dos secrets conforme a tabela 3.4 da F6."
+  }
+
+  assert {
+    condition     = aws_secretsmanager_secret.mp_access_token.recovery_window_in_days == 0 && aws_secretsmanager_secret.mp_webhook_secret.recovery_window_in_days == 0
+    error_message = "recovery_window_in_days = 0 (destroy diario)."
+  }
+}
+
+run "consumidor_e_destino" {
+  command = apply
+
+  assert {
+    condition     = output.app_config.APP_MESSAGING_CONSUMIDOR_FILAS == aws_sqs_queue.comandos.url
+    error_message = "APP_MESSAGING_CONSUMIDOR_FILAS deve ser a URL da billing-comandos."
+  }
+
+  assert {
+    condition     = output.app_config.MESSAGING_DESTINO_BILLING_EVENTOS == aws_sns_topic.eventos.arn
+    error_message = "MESSAGING_DESTINO_BILLING_EVENTOS deve ser o ARN do topico billing-eventos."
+  }
+}
+
+run "rejeita_token_vazio" {
+  command = plan
+
+  variables {
+    mp_access_token = ""
+  }
+
+  expect_failures = [var.mp_access_token]
 }

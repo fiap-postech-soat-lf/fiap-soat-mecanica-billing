@@ -2,7 +2,7 @@
 
 Terraform do Billing, aplicado pelo `servico-cd.yml@v1` antes do build da imagem.
 
-> **Antecipado pela F4 (F4-k).** O OS precisa dos tópicos e das filas para a Saga existir no EKS, então o `infra/` já tem ECR, tópico, fila de comandos + DLQ e os SSM, além do RDS `billing_db`. **Nenhum consumidor está ligado**: o `app_config` não tem `APP_MESSAGING_CONSUMIDOR_FILAS`, e os comandos ficam na fila para inspeção. A F6 acrescenta os segredos do Mercado Pago, o `APP_MESSAGING_CONSUMIDOR_FILAS` e o consumidor de `billing-comandos`.
+> Na F6 o `infra/` ganhou os segredos do Mercado Pago (F6-m) e o consumidor de `billing-comandos` ligado pelo `app_config`.
 
 ## Recursos
 
@@ -12,6 +12,7 @@ Terraform do Billing, aplicado pelo `servico-cd.yml@v1` antes do build da imagem
 | `ecr.tf` | Repositório `mecanica-billing` (`MUTABLE`, `force_delete`, scan on push) e lifecycle das 10 imagens mais recentes |
 | `rds.tf` | Módulo `fiap-soat-mecanica-db//modules/rds-postgres?ref=v1`: RDS, secret e SG `mecanica-billing-db`, banco `billing_db` |
 | `sns.tf` | Tópico `mecanica-billing-eventos` e SSM `/mecanica/billing/billing-eventos-topic-arn` (lido pelo `infra/` do OS, que assina na `os-saga-respostas`) |
+| `secrets.tf` | Secrets `mercadopago-access-token` e `mercadopago-webhook-secret` (`recovery_window_in_days = 0`), expostos só no `app_secrets` |
 | `sqs.tf` | Fila `mecanica-billing-comandos` (visibility 30 s, retenção 4 dias) + DLQ, redrive após 5 recebimentos, e SSM `/mecanica/billing/billing-comandos-queue-url`. Sem queue policy: o OS envia direto com a `LabRole`, na mesma conta |
 
 - Tudo é destrutível sem sobra (regras 3.3 do plano da F2).
@@ -37,7 +38,8 @@ O `infra/outputs.tf` precisa expor:
 
 - Backend S3 configurado pelo CD: bucket `mecanica-tfstate-<accountId>`, key `fiap-soat-mecanica-billing/terraform.tfstate`. O `backend.tf` fica só com `backend "s3" {}`.
 - Provider AWS `~> 6.0`, `required_version = ">= 1.10.0, < 2.0.0"`.
-- O CD passa `TF_VAR_mp_access_token` e `TF_VAR_mp_webhook_secret`. Variáveis não declaradas são ignoradas.
+- O CD passa `TF_VAR_mp_access_token` e `TF_VAR_mp_webhook_secret`. As duas variáveis são `sensitive`, sem default e não aceitam valor vazio: sem elas o `plan` falha.
+- **Webhook do Mercado Pago (F6-j):** a URL `<api-url>/webhooks/mercadopago` muda a cada subida do API Gateway e **não é Terraform**. Ela é gravada na aplicação `mecanica-fase4` (MCP `save_webhook` ou painel) a cada janela, depois do CD do `-auth`.
 - Nomes de filas, tópicos, RDS e SSM seguem a tabela 3.4 do plano da F1.
 
 ### Chaves de mensageria no `app_config`
@@ -52,4 +54,4 @@ As chaves do `app_config` viram variáveis de ambiente do pod (`envFrom`).
 
 Os destinos usam variável explícita porque a ligação relaxada do Spring não preserva o `-` das chaves de mapa vindas de variáveis de ambiente (`execucao-comandos` viraria `execucao.comandos`). A role do pod precisa de `sns:Publish` nos tópicos e de `sqs:SendMessage`, `ReceiveMessage`, `DeleteMessage` e `GetQueueAttributes` nas filas.
 
-Valores atuais do `app_config`: `SPRING_DATASOURCE_URL`, `AWS_REGION`, `JWT_PUBLIC_KEY` (PEM com `\n` escapado) e `APP_MESSAGING_DLQS` (URL da DLQ). O `app_secrets` tem usuário e senha do banco.
+Valores atuais do `app_config` (6 chaves): `SPRING_DATASOURCE_URL`, `AWS_REGION`, `JWT_PUBLIC_KEY` (PEM com `\n` escapado), `APP_MESSAGING_DLQS` (URL da DLQ), `APP_MESSAGING_CONSUMIDOR_FILAS` (URL da `billing-comandos`) e `MESSAGING_DESTINO_BILLING_EVENTOS` (ARN do tópico). O `app_secrets` (4 chaves) tem usuário e senha do banco, `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`.

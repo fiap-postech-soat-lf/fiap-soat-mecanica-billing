@@ -13,8 +13,10 @@ output "app_config" {
     # --from-env-file nao aceita valor multilinha; o JwtTokenValidator aceita PEM com \n escapado.
     JWT_PUBLIC_KEY = replace(data.aws_ssm_parameter.jwt_public_key.insecure_value, "\n", "\\n")
 
-    # Sem APP_MESSAGING_CONSUMIDOR_FILAS: o consumidor entra na fase do servico.
-    APP_MESSAGING_DLQS = aws_sqs_queue.comandos_dlq.url
+    APP_MESSAGING_DLQS             = aws_sqs_queue.comandos_dlq.url
+    APP_MESSAGING_CONSUMIDOR_FILAS = aws_sqs_queue.comandos.url
+    # Variavel explicita: a ligacao relaxada do Spring nao preserva o "-" das chaves de mapa.
+    MESSAGING_DESTINO_BILLING_EVENTOS = aws_sns_topic.eventos.arn
   }
 }
 
@@ -24,5 +26,7 @@ output "app_secrets" {
   value = {
     SPRING_DATASOURCE_USERNAME = module.db.username
     SPRING_DATASOURCE_PASSWORD = module.db.password
+    MP_ACCESS_TOKEN            = var.mp_access_token
+    MP_WEBHOOK_SECRET          = var.mp_webhook_secret
   }
 }

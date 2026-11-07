@@ -45,4 +45,30 @@ public final class BusinessEventLogger {
                 .addKeyValue("orderServiceId", osId)
                 .log("Cobranca created");
     }
+
+    public static void orcamentoFalhou(UUID osId, String motivo) {
+        log.atWarn()
+                .addKeyValue("event", "orcamento_falhou")
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("motivo", motivo)
+                .log("Orcamento failed");
+    }
+
+    public static void cancelamentoSemEfeito(UUID osId, UUID orcamentoId, String motivo) {
+        log.atInfo()
+                .addKeyValue("event", "cancelamento_sem_efeito")
+                .addKeyValue("orcamentoId", orcamentoId)
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("motivo", motivo)
+                .log("Cancelamento without effect");
+    }
+
+    public static void comandoReemitido(UUID osId, String tipoComando, String tipoResposta) {
+        log.atInfo()
+                .addKeyValue("event", "comando_reemitido")
+                .addKeyValue("orderServiceId", osId)
+                .addKeyValue("comando", tipoComando)
+                .addKeyValue("resposta", tipoResposta)
+                .log("Comando reenviado; resposta reemitida");
+    }
 }

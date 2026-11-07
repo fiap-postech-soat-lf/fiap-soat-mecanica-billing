@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SolicitarPagamento v1",
+  "description": "Comando OS -> Billing: cria a cobranca no Mercado Pago. Canal: SQS mecanica-billing-comandos. Payload do envelope (envelope.schema.json) com type=SolicitarPagamento e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "orcamentoId",
+    "valor"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orcamentoId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "valor": {
+      "type": "number",
+      "multipleOf": 0.01,
+      "description": "Valor em reais com ate 2 casas (lido como BigDecimal).",
+      "exclusiveMinimum": 0
+    }
+  }
+}

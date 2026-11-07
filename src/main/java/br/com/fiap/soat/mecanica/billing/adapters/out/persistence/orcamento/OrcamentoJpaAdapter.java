@@ -7,6 +7,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,5 +47,11 @@ public class OrcamentoJpaAdapter implements OrcamentoRepository {
     @Transactional(readOnly = true)
     public Optional<Orcamento> buscarMaisRecentePorOs(UUID osId) {
         return repository.findFirstByOsIdOrderByCriadoEmDesc(osId).map(OrcamentoMapper::paraDominio);
+    }
+
+    @Override
+    @Transactional
+    public List<Orcamento> travarVencidos(Instant agora, int limite) {
+        return repository.travarVencidos(agora, limite).stream().map(OrcamentoMapper::paraDominio).toList();
     }
 }

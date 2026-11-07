@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GerarOrcamento v1",
+  "description": "Comando OS -> Billing: gera o orcamento a partir do diagnostico. Canal: SQS mecanica-billing-comandos. Payload do envelope (envelope.schema.json) com type=GerarOrcamento e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "clienteId",
+    "itens",
+    "valorTotal"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "clienteId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "itens": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/itemServico"
+      }
+    },
+    "valorTotal": {
+      "type": "number",
+      "minimum": 0,
+      "multipleOf": 0.01,
+      "description": "Valor em reais com ate 2 casas (lido como BigDecimal)."
+    }
+  },
+  "$defs": {
+    "itemServico": {
+      "type": "object",
+      "required": [
+        "servicoId",
+        "descricao",
+        "precoMaoDeObra",
+        "pecas"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "servicoId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "descricao": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "precoMaoDeObra": {
+          "type": "number",
+          "minimum": 0,
+          "multipleOf": 0.01,
+          "description": "Valor em reais com ate 2 casas (lido como BigDecimal)."
+        },
+        "pecas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pecaOrcada"
+          },
+          "description": "Vazio quando o servico nao usa pecas."
+        }
+      }
+    },
+    "pecaOrcada": {
+      "type": "object",
+      "required": [
+        "pecaId",
+        "descricao",
+        "quantidade",
+        "valorUnitario"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "pecaId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "descricao": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "quantidade": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "valorUnitario": {
+          "type": "number",
+          "minimum": 0,
+          "multipleOf": 0.01,
+          "description": "Valor em reais com ate 2 casas (lido como BigDecimal)."
+        }
+      }
+    }
+  }
+}

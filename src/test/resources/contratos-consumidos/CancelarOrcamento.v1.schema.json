@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CancelarOrcamento v1",
+  "description": "Comando OS -> Billing (compensacao): cancela o orcamento da OS. Canal: SQS mecanica-billing-comandos. Payload do envelope (envelope.schema.json) com type=CancelarOrcamento e version=1.",
+  "type": "object",
+  "required": [
+    "osId",
+    "orcamentoId",
+    "motivo"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "osId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orcamentoId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "motivo": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  }
+}

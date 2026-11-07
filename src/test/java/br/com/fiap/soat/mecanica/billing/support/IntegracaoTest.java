@@ -75,6 +75,7 @@ public abstract class IntegracaoTest {
         registry.add("app.messaging.consumidor.visibilidade-segundos", () -> "2");
         registry.add("app.messaging.dlqs", MENSAGERIA::dlq);
         registry.add("app.messaging.destinos.teste-eventos", MENSAGERIA::topicoEventos);
+        registry.add("app.messaging.destinos.billing-eventos", MENSAGERIA::topicoEventos);
         registry.add("app.messaging.destinos.teste-comandos", MENSAGERIA::filaComandos);
         registry.add("app.messaging.destinos.teste-quebrado", MENSAGERIA::topicoInexistente);
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);

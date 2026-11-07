@@ -1,5 +1,7 @@
 package br.com.fiap.soat.mecanica.billing.config.exception;
 
+import br.com.fiap.soat.mecanica.billing.domain.exception.AcessoARecursoDeOutroClienteException;
+import br.com.fiap.soat.mecanica.billing.domain.exception.ConflitoConcorrenciaException;
 import br.com.fiap.soat.mecanica.billing.domain.exception.RecursoNaoEncontradoException;
 import br.com.fiap.soat.mecanica.billing.domain.exception.RegraNegocioException;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -7,6 +9,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -137,6 +140,24 @@ public class GlobalExceptionHandler {
                         null
                 )
         );
+    }
+
+    @ExceptionHandler(AcessoARecursoDeOutroClienteException.class)
+    public ResponseEntity<ErrorResponse> handleOutroCliente(AcessoARecursoDeOutroClienteException ex) {
+        log.atWarn().addKeyValue("event", "recurso_de_outro_cliente")
+                .addKeyValue("reason", ex.getMessage()).log("Resource belongs to another customer");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(403, "ORCAMENTO_DE_OUTRO_CLIENTE",
+                ex.getMessage(), null, null, null));
+    }
+
+    /** Aprovar x expirar, duas aprovacoes: nada foi gravado e o cliente repete a operacao (F6-e). */
+    @ExceptionHandler({ConflitoConcorrenciaException.class, OptimisticLockingFailureException.class,
+            jakarta.persistence.OptimisticLockException.class})
+    public ResponseEntity<ErrorResponse> handleConflitoConcorrente(Exception ex) {
+        log.atWarn().addKeyValue("event", "conflito_concorrente")
+                .addKeyValue("exceptionType", ex.getClass().getSimpleName()).log("Concurrent modification conflict");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(409, "CONFLITO_CONCORRENTE",
+                "O recurso foi alterado por outra operação; repita a requisição", null, null, null));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

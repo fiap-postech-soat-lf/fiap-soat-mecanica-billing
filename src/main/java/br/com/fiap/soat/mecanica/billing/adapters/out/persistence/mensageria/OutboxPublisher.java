@@ -1,6 +1,8 @@
 package br.com.fiap.soat.mecanica.billing.adapters.out.persistence.mensageria;
 
 import br.com.fiap.soat.mecanica.billing.adapters.out.messaging.SnsSqsPublicador;
+import br.com.fiap.soat.mecanica.billing.application.mensageria.ContextoRastreamento;
+import io.opentelemetry.context.Scope;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -52,7 +54,7 @@ public class OutboxPublisher {
     }
 
     private boolean publicar(OutboxEntity mensagem) {
-        try {
+        try (Scope ignored = ContextoRastreamento.doEnvelope(mensagem.getEnvelope()).makeCurrent()) {
             publicador.publicar(mensagem.getDestino(), mensagem.getTipo(), mensagem.getEnvelope());
             mensagem.setPublicadoEm(Instant.now());
             return true;

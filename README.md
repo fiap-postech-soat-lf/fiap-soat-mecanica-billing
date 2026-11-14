@@ -1,8 +1,11 @@
 # fiap-soat-mecanica-billing
 
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=fiap-postech-soat-lf_fiap-soat-mecanica-billing&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fiap-postech-soat-lf_fiap-soat-mecanica-billing)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fiap-postech-soat-lf_fiap-soat-mecanica-billing&metric=coverage)](https://sonarcloud.io/component_measures?id=fiap-postech-soat-lf_fiap-soat-mecanica-billing&metric=coverage)
+
 Microsserviço **billing** da **Fase 4** da Oficina Mecânica do Braia (Tech Challenge FIAP SOAT).
 
-> 🚧 Rascunho da F6. As seções marcadas com *TODO* são completadas e revisadas na F9.
+Veja também o [diagrama geral da arquitetura](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/diagrama/arquitetura-aws-fase4.png). Vídeo da entrega: *link entra depois do upload*.
 
 ## Responsabilidade
 
@@ -173,8 +176,51 @@ O `infra/` cria o ECR, o RDS `billing_db`, o tópico `mecanica-billing-eventos`,
 
 ADRs transversais e RFCs no `-k8s` (`docs/arquitetura-fase4/`): ADR-F4-02 (Saga), ADR-F4-03 (SNS + SQS), ADR-F4-04 (outbox e consumidor idempotente), ADR-F4-05 (database per service) e RFC-F4-01 (Mercado Pago). Decisões só deste serviço ficam em `docs/adr/`.
 
-## TODO (F9)
+## Componentes
 
-- Diagrama de componentes revisado.
-- Exemplos de `curl` para o fluxo do orçamento e da nova cobrança.
-- Link para o vídeo de demonstração.
+```mermaid
+flowchart LR
+    U[Cliente / Atendente] -->|REST + JWT| C[controllers]
+    C --> UC[casos de uso]
+    Q[[SQS billing-comandos]] --> SC[SqsConsumidor] --> H[handlers idempotentes]
+    UC & H --> PG[(Postgres billing_db<br/>orçamento, pagamento, outbox)]
+    PG --> OP[OutboxPublisher 1 s] --> SNS[[SNS billing-eventos]]
+    subgraph ACL[Camada anticorrupção]
+        MP[MercadoPagoClient]
+    end
+    H & UC --> MP
+    MP -->|POST /checkout/preferences<br/>GET /v1/payments/id| MPAPI[(Mercado Pago)]
+    MPAPI -->|POST /webhooks/mercadopago<br/>x-signature HMAC| WH[WebhookController]
+    WH --> WE[(webhook_eventos)]
+    WE --> PS[ProcessadorWebhookScheduler 2 s] --> MP
+    EX[ExpiracaoOrcamentoScheduler 30 s] --> PG
+```
+
+O Mercado Pago só é conhecido pelo `MercadoPagoClient`: o domínio fala em orçamento e pagamento. O webhook responde 200 na hora e é processado depois, com idempotência por `(payment.id, status)`.
+
+## Exemplos de `curl`
+
+`API` é a URL do API Gateway (`aws ssm get-parameter --name /mecanica/auth/api-url --query Parameter.Value --output text`).
+
+```bash
+CLIENTE=$(curl -s -X POST "$API/auth/cpf" -H 'Content-Type: application/json' \
+  -d '{"cpf":"52998224725"}' | jq -r .accessToken)
+ATENDENTE=$(curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"atendente@mecanica.test","senha":"Senha@123"}' | jq -r .accessToken)
+
+# 1. Orçamento da OS e aprovação pelo cliente (a Saga segue para a execução)
+ORC=$(curl -s "$API/orcamentos/por-os/$OS_ID" -H "Authorization: Bearer $CLIENTE" | jq -r .id)
+curl -s -X PATCH "$API/orcamentos/$ORC/aprovar" -H "Authorization: Bearer $CLIENTE"
+
+# 1b. Ou recusa (a OS vai a CANCELADA e a reserva é liberada)
+curl -s -X PATCH "$API/orcamentos/$ORC/recusar" -H "Authorization: Bearer $CLIENTE" \
+  -H 'Content-Type: application/json' -d '{"motivo":"Valor acima do esperado"}'
+
+# 2. Pagamento vigente, com o link do Checkout Pro
+curl -s "$API/pagamentos/por-os/$OS_ID" -H "Authorization: Bearer $CLIENTE"
+
+# 3. Nova cobrança (só com o pagamento vigente RECUSADO)
+curl -s -X POST "$API/pagamentos/$OS_ID/nova-cobranca" -H "Authorization: Bearer $ATENDENTE"
+```
+
+Uma collection Postman com todos os serviços está em [`docs/postman/` do `-os`](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-os/tree/main/docs/postman).

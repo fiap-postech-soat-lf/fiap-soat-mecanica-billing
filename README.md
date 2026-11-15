@@ -3,9 +3,9 @@
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=fiap-postech-soat-lf_fiap-soat-mecanica-billing&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fiap-postech-soat-lf_fiap-soat-mecanica-billing)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fiap-postech-soat-lf_fiap-soat-mecanica-billing&metric=coverage)](https://sonarcloud.io/component_measures?id=fiap-postech-soat-lf_fiap-soat-mecanica-billing&metric=coverage)
 
-Microsserviço **billing** da **Fase 4** da Oficina Mecânica do Braia (Tech Challenge FIAP SOAT).
+Microsserviço **billing** da **Fase 4** da Oficina Mecânica SOAT15 - LF (Tech Challenge FIAP SOAT).
 
-Veja também o [diagrama geral da arquitetura](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/diagrama/arquitetura-aws-fase4.png). Vídeo da entrega: *link entra depois do upload*.
+Veja também o [diagrama geral da arquitetura](https://github.com/fiap-postech-soat-lf/fiap-soat-mecanica-k8s/blob/main/docs/arquitetura-fase4/diagrama/arquitetura-aws-fase4.png). Vídeo da entrega: [assistir no Vimeo](https://vimeo.com/1246945589).
 
 ## Responsabilidade
 
